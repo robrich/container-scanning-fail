@@ -1,0 +1,40 @@
+name: Docker build and container scan
+
+on:
+  push:
+    branches:
+    - '**'
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Docker build
+      run: |
+        docker build . --file Dockerfile --tag containerscanning:${{ github.sha }}
+
+    - name: Anchore scan
+      uses: anchore/scan-action@1.0.6
+      with:
+        image-reference: containerscanning:${{ github.sha }}
+        dockerfile-path: Dockerfile
+        include-app-packages: true
+        fail-build: true
+        custom-policy-path: .anchore/policy.json
+
+    - name: Show Anchore results
+      run: for j in `ls ./anchore-reports/*.json`; do echo "---- ${j} ----"; cat ${j}; echo; done
+      if: ${{ always() }}
+
+    - name: Upload Anchore results
+      uses: actions/upload-artifact@v2
+      with:
+        name: anchore-reports
+        path: ./anchore-reports/
+      if: ${{ always() }}
